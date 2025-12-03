@@ -89,3 +89,8 @@ class ValueMatchingEnv(gym.Env):
             'history': self.action_history
         }
         return next_state, reward, done, truncated, info
+    
+    def get_valid_actions(self):
+        """Return list of valid action indices"""
+        return [a for a in range(len(self.primitives)) 
+                if a not in self.action_history]
