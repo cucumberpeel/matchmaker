@@ -26,7 +26,7 @@ def read_datasets_old():
 
 def read_datasets():
     formatted_datasets = []
-    dataset_paths = ['../data/Hospital/gt.csv', '../data/Country/gt.csv']
+    dataset_paths = [ 'data/Hospital/gt.csv']
 
     for dataset_path in dataset_paths:
         raw_dataset = pd.read_csv(dataset_path)
