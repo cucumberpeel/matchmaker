@@ -60,7 +60,12 @@ def evaluate_individual_methods(test_dataset):
             if name == 'llm':
                 prediction = gold_value  # Assume perfect prediction for LLM in this placeholder
             else:
-                prediction = method(source_value, target_values)
+                try:
+                    prediction = method(source_value, target_values)
+                except Exception as e:
+                    print(f"Error in {name} method: {e}")
+                    print(f"Input: {source_value}, {target_values[:3]}")
+                    return
 
             if prediction == gold_value:
                 correct += 1
