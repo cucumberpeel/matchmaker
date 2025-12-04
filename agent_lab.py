@@ -23,7 +23,9 @@ def train_agent(primitives, primitive_names, dataset, feature_dim, max_steps):
     
     # Training loop
     num_episodes = 1000
-    success_count = 0
+    first_attempt_success = 0
+    attempt_counts = []
+    rewards_history = [] 
     
     for episode in range(num_episodes):
         # Sample a random value from dataset
@@ -42,13 +44,17 @@ def train_agent(primitives, primitive_names, dataset, feature_dim, max_steps):
         while not done:
             state_key = state_to_key(state)
             
-            # Epsilon-greedy action selection
+            valid_actions = env.get_valid_actions()
+
+            if not valid_actions:  # No valid actions left
+                break  # End episode early
+
             if np.random.rand() < epsilon:
-                action = env.action_space.sample()  # Explore
+                action = np.random.choice(valid_actions)  # Explore valid actions only
             else:
-                # Exploit: choose best action from Q-table
-                q_values = {a: Q.get((state_key, a), 0) for a in range(num_actions)}
-                action = max(q_values, key=q_values.get) # Best action
+                # Exploit: choose best valid action from Q-table
+                q_values = {a: Q.get((state_key, a), 0) for a in valid_actions}
+                action = max(q_values, key=q_values.get)
             
             # Take action 
             next_state, reward, terminated, truncated, info = env.step(action)
@@ -72,33 +78,35 @@ def train_agent(primitives, primitive_names, dataset, feature_dim, max_steps):
             Q[(state_key, action)] = updated_q_value
             
             state = next_state
-        
-        # Track success
-        if info['correct']:
-            success_count += 1
+
+        rewards_history.append(total_reward)
+        attempt_counts.append(info['attempts'])
+
+        if info['correct'] and info['attempts'] == 1:
+            first_attempt_success += 1
         
         # Decay epsilon
         epsilon = max(min_epsilon, epsilon * epsilon_decay)
         
         # Logging
         if (episode + 1) % 100 == 0:
-            avg_success = success_count / 100
-            format_history = ", ".join([primitive_names[i] for i in info['history'] if i != -1])
+            avg_reward = np.mean(rewards_history[-100:])  # Average over last 100
+            avg_attempts = np.mean(attempt_counts[-100:])  # Average over last 100
+            first_attempt_rate = first_attempt_success / 100
+            
             print(f"Episode {episode + 1}/{num_episodes}, "
-                  f"Total Reward: {total_reward:.3f}, "
-                  f"Success Rate: {avg_success:.3f}, "
-                  f"Epsilon: {epsilon:.3f}, "
-                  f"Attempts: {info['attempts']}, "
-                  f"History: [{format_history}]"
+                f"Avg Reward: {avg_reward:.3f}, "
+                f"Avg Attempts: {avg_attempts:.3f}, "
+                #f"First-Attempt Success: {first_attempt_rate:.3f}, "
+                f"Epsilon: {epsilon:.3f}"
             )
-            success_count = 0
+        first_attempt_success = 0  # Reset for next logging period
     
     return Q
 
 
 def evaluate_agent(Q, primitives, primitive_names, test_dataset, feature_dim, max_steps):
     env = ValueMatchingEnv(primitives, feature_dim, max_steps)
-    num_actions = env.action_space.n
     
     results = {
         'correct': 0,
@@ -118,11 +126,17 @@ def evaluate_agent(Q, primitives, primitive_names, test_dataset, feature_dim, ma
         
         while not done:
             state_key = state_to_key(state)
+
+            # Get valid actions
+            valid_actions = env.get_valid_actions()
+            
+            if not valid_actions:  # No valid actions left
+                break
             
             # Greedy action selection (no exploration)
-            q_values = {a: Q.get((state_key, a), 0) for a in range(num_actions)}
+            q_values = {a: Q.get((state_key, a), 0) for a in valid_actions}
             action = max(q_values, key=q_values.get)
-            #print("Selected action:", primitive_names[action])
+
             next_state, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
             
@@ -133,7 +147,7 @@ def evaluate_agent(Q, primitives, primitive_names, test_dataset, feature_dim, ma
         results['total_attempts'] += info['attempts']
         if info['correct']:
             results['correct'] += 1
-        #print("history", info['history'])
+
         for used_algorithm in info['history']:
             if used_algorithm != -1:
                 results['algorithm_usage'][primitive_names[used_algorithm]] += 1
