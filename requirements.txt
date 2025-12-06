@@ -4,5 +4,4 @@ gymnasium
 scikit-learn
 bdi-kit
 rapidfuzz
-ray
-dm-tree
+ray[rllib]
