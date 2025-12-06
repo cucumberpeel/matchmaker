@@ -49,7 +49,12 @@ class ValueMatchingEnv(gym.Env):
         return state, info
     
     def step(self, action):
-        if action in self.action_history:
+        # Record algorithm in history
+        if self.steps_taken < self.max_steps:
+            self.action_history[self.steps_taken] = action
+        self.steps_taken += 1 
+
+        if action in self.action_history[:self.steps_taken-1]:  # Check previous actions only
             # Penalize heavily for selecting an already-used action
             reward = -0.5
             done = True
@@ -65,12 +70,6 @@ class ValueMatchingEnv(gym.Env):
             }
             
             return next_state, reward, done, truncated, info
-        
-        # Record algorithm in history
-        if self.steps_taken < self.max_steps:
-            self.action_history[self.steps_taken] = action
-
-        self.steps_taken += 1
 
         # For LLM action, assume worst-case (wrong) prediction instead of
         # the previous oracle behaviour that returned the gold label.
