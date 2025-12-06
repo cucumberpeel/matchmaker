@@ -5,52 +5,67 @@ from feature_extractor import compute_features
 
 class ValueMatchingEnv(gym.Env):
 
-    def __init__(self, primitives, feature_dim, max_steps=3):
+    def __init__(self, env_config):
         super(ValueMatchingEnv, self).__init__()
-        self.primitives = primitives
-        self.feature_dim = feature_dim
-        self.max_steps = max_steps
-        self.action_space = gym.spaces.Discrete(len(primitives))
+        self.primitives = env_config['primitives']
+        self.costs = env_config["costs"]
+        self.dataset = env_config['dataset']
+        self.feature_dim = env_config['feature_dim']
+        self.max_steps = env_config['max_steps']
+        self.action_space = gym.spaces.Discrete(len(self.primitives))
         self.steps_taken = 0
         self.action_history = [-1] * self.max_steps
 
-        obs_dim = feature_dim + max_steps
+        # observation_space is used by some RL libraries (e.g. Ray) to initialize neural networks
         self.observation_space = gym.spaces.Box(
-            low=0.0,
-            high=np.inf,
-            shape=(obs_dim,),
-            dtype=np.float32
-        )
-
-    def _encode_history(self):
-        """Normalize action history to [0, 1] range for better working with NN"""
-        encoded = []
-        for action in self.action_history:
-            if action == -1:
-                encoded.append(0.0)
-            else:
-                encoded.append((action + 1) / len(self.primitives))
-
-        return encoded
+                low=0.0,
+                high=np.inf,
+                shape=(self.feature_dim + self.max_steps,),
+                dtype=np.float32
+            )
     
-    def reset(self, source, targets, gold):
+    def reset(self, *, seed=None, options=None):
         # Reset episode state
+
+        idx = np.random.randint(len(self.dataset))
+        self.source = self.dataset[idx]['source_value']
+        self.targets = self.dataset[idx]['target_values']
+        self.gold = self.dataset[idx]['gold_value']
         self.steps_taken = 0
         self.action_history = [-1] * self.max_steps
         
         # Compute initial state
-        features = compute_features(source, targets)
+        features = compute_features(self.source, self.targets)
         action_history_encoded = self._encode_history()
         state = features + action_history_encoded
         state = np.array(state, dtype=np.float32)
-        self.source = source
-        self.targets = targets
-        self.gold = gold
         self.features = features
-        
-        return state
+
+        # Compute initial state
+        self.features = compute_features(self.source, self.targets)
+        state = self._build_observation()
+
+        info = {}
+        return state, info
     
     def step(self, action):
+        if action in self.action_history:
+            # Penalize heavily for selecting an already-used action
+            reward = -0.5
+            done = True
+            truncated = False
+            next_state = self._build_observation()
+            
+            info = {
+                'predicted': None,
+                'correct': False,
+                'attempts': self.steps_taken,
+                'history': self.action_history,
+                'invalid_action': True
+            }
+            
+            return next_state, reward, done, truncated, info
+        
         # Record algorithm in history
         if self.steps_taken < self.max_steps:
             self.action_history[self.steps_taken] = action
@@ -67,32 +82,46 @@ class ValueMatchingEnv(gym.Env):
 
         # Check if correct
         is_correct = (predicted == self.gold)
-        
+        action_cost = self.costs[action]
         # Compute reward with decay based on attempts
         if is_correct:
             reward = 1.0 - 0.2 * (self.steps_taken - 1)  # Decay: 1.0, 0.8, 0.6
+            reward -= action_cost
             done = True
         elif self.steps_taken >= self.max_steps:
             reward = -1.0  # Failed after max attempts
             done = True
         else:
             reward = -0.1  # Small penalty for wrong attempt
+            reward -= action_cost
             done = False
 
-        action_history_encoded = self._encode_history()
-        next_state = self.features + action_history_encoded
-        next_state = np.array(next_state, dtype=np.float32)
+        next_state = self._build_observation()
+        truncated = False
 
-        truncated = False  # There is no artificial cutoffs for this approach
         info = {
             'predicted': predicted,
             'correct': is_correct,
             'attempts': self.steps_taken,
             'history': self.action_history
         }
+
         return next_state, reward, done, truncated, info
     
-    def get_valid_actions(self):
-        """Return list of valid action indices"""
-        return [a for a in range(len(self.primitives)) 
-                if a not in self.action_history]
+    def _encode_history(self):
+        """Normalize action history to [0, 1] range for better working with NN"""
+        encoded = []
+        for action in self.action_history:
+            if action == -1:
+                encoded.append(0.0)
+            else:
+                encoded.append((action + 1) / len(self.primitives))
+
+        return encoded
+    
+    def _build_observation(self):
+        """Build the observation vector"""
+        action_history_encoded = self._encode_history()
+        obs = self.features + action_history_encoded
+        
+        return np.array(obs, dtype=np.float32)
