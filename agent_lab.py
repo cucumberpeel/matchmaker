@@ -1,6 +1,7 @@
+import ray
+import logging
 from agent_environment import ValueMatchingEnv
 from ray.rllib.algorithms.ppo import PPOConfig
-
 
 def make_config(primitives, primitive_costs, dataset, feature_dim, max_steps):
     config = (
@@ -21,36 +22,43 @@ def make_config(primitives, primitive_costs, dataset, feature_dim, max_steps):
             enable_env_runner_and_connector_v2=False
         )
         .env_runners(
-            num_env_runners=2,  # Number of parallel workers
-            rollout_fragment_length=20,  # Collect more samples per rollout
+            num_env_runners=16,  # Number of parallel workers
+            rollout_fragment_length="auto",  # Collect more samples per rollout
             sample_timeout_s=120,
         )
         .training(
-            train_batch_size=400,
+            train_batch_size=2000,
             num_sgd_iter=10,
         )
+        #.resources(
+        #    num_gpus=1,
+        #) 
     )
     return config
 
+
 def train_agent(checkpoint_dir, primitives, primitive_names, primitive_costs, dataset, feature_dim, max_steps):
+    ray.init(local_mode=True, logging_level=logging.DEBUG)
     config = make_config(primitives, primitive_costs, dataset, feature_dim, max_steps)
     algo = config.build()
-    
-    for i in range(3):
+
+    for i in range(200):
+        print(f"Iteration {i}")
         result = algo.train()
         # Print available keys on first iteration to debug
         if i == 0:
             print(f"Available result keys: {list(result.keys())}")
-        
+
         if "episode_reward_mean" in result:
             reward = result["episode_reward_mean"]
-            print(f"Iteration {i}: Reward = {reward}")
-    
+            print(f"Reward = {reward}")
+
     algo.save(checkpoint_dir=checkpoint_dir)
 
     return algo
 
 def load_agent(checkpoint_dir, primitives, primitive_costs, dataset, feature_dim, max_steps):
+    ray.init(local_mode=True, logging_level=logging.DEBUG)
     config = make_config(primitives, primitive_costs, dataset, feature_dim, max_steps)
     algo = config.build()
     algo.restore(checkpoint_dir)
