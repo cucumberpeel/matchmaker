@@ -11,7 +11,7 @@ light_stem_algorithm)
 from feature_extractor import FEATURE_DIM
 
 
-general_costs = {'light': 0.05, 'moderate': 0.1, 'expensive': 0.7}
+general_costs = {'light': 0.075, 'moderate': 0.15, 'expensive': 0.3}
 primitives = [
     ("lexical", lexical_algorithm, 'light'), 
     ("semantic", semantic_algorithm, 'moderate'), 
