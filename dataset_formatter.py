@@ -1,4 +1,5 @@
 import os
+import json
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
@@ -210,6 +211,21 @@ def read_split_datasets(autofj=True, ss=True, wt=True, kbwt=True, test_size=0.2,
 def split_datasets(datasets, test_size=0.2, random_state=42):
     train_set, test_set = train_test_split(datasets, test_size=test_size, random_state=random_state)
     return train_set, test_set
+
+def save_formatted_datasets(train_dataset, test_dataset, dataset_path):
+    os.makedirs(dataset_path, exist_ok=True)
+    train_file_path = os.path.join(dataset_path, "train.json")
+    test_file_path = os.path.join(dataset_path, "test.json")
+
+    with open(train_file_path, "w") as f:
+        json.dump(train_dataset, f, indent=2)
+
+    with open(test_file_path, "w") as f:
+        json.dump(test_dataset, f, indent=2)
+
+    print(f"Formatted datasets saved to {dataset_path}")
+
+    return train_file_path, test_file_path
 
 def print_datasets_info(datasets):
     print("Previewing datasets...")

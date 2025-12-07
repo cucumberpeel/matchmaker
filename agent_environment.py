@@ -1,5 +1,6 @@
-import gymnasium as gym
+import json
 import numpy as np
+import gymnasium as gym
 from feature_extractor import compute_features
 
 
@@ -9,7 +10,7 @@ class ValueMatchingEnv(gym.Env):
         super(ValueMatchingEnv, self).__init__()
         self.primitives = env_config['primitives']
         self.costs = env_config["costs"]
-        self.dataset = env_config['dataset']
+        self.dataset_path = env_config['dataset']
         self.feature_dim = env_config['feature_dim']
         self.max_steps = env_config['max_steps']
         self.action_space = gym.spaces.Discrete(len(self.primitives))
@@ -23,10 +24,12 @@ class ValueMatchingEnv(gym.Env):
                 shape=(self.feature_dim + self.max_steps,),
                 dtype=np.float32
             )
+        
+        self.dataset = None  # will load lazily
     
     def reset(self, *, seed=None, options=None):
         # Reset episode state
-
+        self._load_dataset()
         idx = np.random.randint(len(self.dataset))
         self.source = self.dataset[idx]['source_value']
         self.targets = self.dataset[idx]['target_values']
@@ -124,3 +127,16 @@ class ValueMatchingEnv(gym.Env):
         obs = self.features + action_history_encoded
         
         return np.array(obs, dtype=np.float32)
+    
+    def _load_dataset(self):
+        if self.dataset is not None:
+            return
+
+        if isinstance(self.dataset_path, list):
+            self.dataset = self.dataset_path
+            return
+
+        if isinstance(self.dataset_path, str):
+            with open(self.dataset_path, "r") as f:
+                self.dataset = json.load(f)
+            return

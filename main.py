@@ -1,6 +1,6 @@
 import os
 from agent_lab import train_agent, load_agent, evaluate_agent
-from dataset_formatter import read_split_datasets
+from dataset_formatter import read_split_datasets, save_formatted_datasets
 from algorithms import (lexical_algorithm, semantic_algorithm, llm_reasoning_algorithm,
 shingles_algorithm, regex_algorithm, identity_algorithm, categorical_algorithm,
 url_algorithm, ssn_algorithm,
@@ -27,7 +27,7 @@ primitives = [
     ("light_stem", light_stem_algorithm, 'light')
 ]
 
-def evaluate_rl_method(train_dataset, test_dataset, load_checkpoint=True, checkpoint_dir="model_checkpoint"):
+def evaluate_rl_method(train_file_path, test_file_path, load_checkpoint=True, checkpoint_dir="model_checkpoint"):
     checkpoint_dir = os.path.join(os.path.dirname(__file__), checkpoint_dir)
     primitive_names = [name for name, _, _ in primitives]
     primitive_methods = [method for _, method, _ in primitives]
@@ -42,7 +42,7 @@ def evaluate_rl_method(train_dataset, test_dataset, load_checkpoint=True, checkp
             checkpoint_dir=checkpoint_dir,
             primitives=primitive_methods,
             primitive_costs=primitive_costs,
-            dataset=train_dataset,
+            dataset=train_file_path,
             feature_dim=feature_dim,
             max_steps=max_steps
         )
@@ -54,7 +54,7 @@ def evaluate_rl_method(train_dataset, test_dataset, load_checkpoint=True, checkp
             primitives=primitive_methods,
             primitive_names=primitive_names,
             primitive_costs=primitive_costs,
-            dataset=train_dataset,
+            dataset=train_file_path,
             feature_dim=feature_dim,
             max_steps=max_steps
         )
@@ -67,7 +67,7 @@ def evaluate_rl_method(train_dataset, test_dataset, load_checkpoint=True, checkp
         primitives=primitive_methods,
         primitive_names=primitive_names,
         primitive_costs=primitive_costs,
-        test_dataset=test_dataset,
+        test_dataset_path=test_file_path,
         feature_dim=feature_dim,
         max_steps=max_steps
     )
@@ -108,8 +108,9 @@ def evaluate_individual_methods(test_dataset):
 
 if __name__ == "__main__":
     train_dataset, test_dataset = read_split_datasets(autofj=True, ss=False, wt=False, kbwt=False)
+    train_file_path, test_file_path = save_formatted_datasets(train_dataset, test_dataset, "formatted_datasets")
     print(f"Train dataset size: {len(train_dataset)}")
     print(f"Test dataset size: {len(test_dataset)}")
 
     #evaluate_individual_methods(test_dataset)
-    evaluate_rl_method(train_dataset, test_dataset)
+    evaluate_rl_method(train_file_path, test_file_path)

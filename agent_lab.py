@@ -1,4 +1,5 @@
 import ray
+import json
 import logging
 from agent_environment import ValueMatchingEnv
 from ray.rllib.algorithms.ppo import PPOConfig
@@ -65,7 +66,7 @@ def load_agent(checkpoint_dir, primitives, primitive_costs, dataset, feature_dim
 
     return algo
 
-def evaluate_agent(algo, primitives, primitive_names, primitive_costs, test_dataset, feature_dim, max_steps):
+def evaluate_agent(algo, primitives, primitive_names, primitive_costs, test_dataset_path, feature_dim, max_steps):
     """Evaluate a trained PPO agent on the test dataset"""
     
     results = {
@@ -75,12 +76,15 @@ def evaluate_agent(algo, primitives, primitive_names, primitive_costs, test_data
         'algorithm_usage': {name: 0 for name in primitive_names}
     }
 
+    with open(test_dataset_path, "r") as f:
+        test_dataset = json.load(f)
+
     for i, sample in enumerate(test_dataset):
         # Create a temporary env for this episode
         env = ValueMatchingEnv({
             'primitives': primitives,
             'costs': primitive_costs,
-            'dataset': [sample],  # Single sample
+            'dataset': [sample],
             'feature_dim': feature_dim,
             'max_steps': max_steps
         })
