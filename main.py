@@ -79,6 +79,7 @@ def evaluate_rl_method(train_file_path, test_file_path, load_checkpoint=False, c
 def evaluate_individual_methods(test_dataset):
     print("\nEvaluating individual methods...")
     for name, method, _ in primitives:
+        print(f"\nEvaluating method: {name}")
         correct = 0
         total = len(test_dataset)
         golds = []
