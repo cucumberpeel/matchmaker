@@ -56,11 +56,13 @@ def train_agent(checkpoint_dir, primitives, primitive_names, primitive_costs, da
             reward_mean = env_metrics.get('episode_reward_mean', float('-inf'))
             episode_len_mean = env_metrics.get('episode_len_mean', 0)
             num_episodes = env_metrics.get('num_episodes', 0)
+            episodes_timesteps_total = env_metrics.get('episodes_timesteps_total', 0)
             
             print(f"Reward Mean: {reward_mean:.3f}")
             print(f"Episode Length: {episode_len_mean:.2f} steps")
             print(f"Episodes: {num_episodes}")
-            
+            print(f"Total Timesteps: {episodes_timesteps_total}")
+
             # Check if this is the best performance so far
             if reward_mean > best_reward:
                 best_reward = reward_mean
