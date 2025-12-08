@@ -2,6 +2,8 @@ import re
 from difflib import SequenceMatcher
 from urllib.parse import urlparse, urlunparse
 import unicodedata, re
+from sklearn.metrics.pairwise import cosine_similarity
+from sentence_transformers import SentenceTransformer
 
 
 import pandas as pd
@@ -10,6 +12,7 @@ try:
 except Exception:
     bdi = None
 
+model = SentenceTransformer('all-MiniLM-L6-v2')
 
 def lexical_algorithm(source, targets):
     # Use bdikit edit-distance matcher if available, otherwise fallback
@@ -46,21 +49,18 @@ def lexical_algorithm(source, targets):
 
 
 def semantic_algorithm(source, targets):
-    dummy = True
-    if dummy:
-        return targets[0]  # Dummy
-    source_column = 'source'
-    target_column = 'target'
-    source_dataset = pd.DataFrame({source_column: [source] })
-    target_dataset = pd.DataFrame({ target_column: targets })
-    
-    matches = bdi.match_values(
-                            source_dataset,
-                            target_dataset,
-                            attribute_matches=(source_column, target_column),
-                            method="embedding",
-                        )
-    return matches["target_value"].iloc[0]
+    # Encode single source + all targets
+    source_emb = model.encode([str(source)])
+    target_embs = model.encode([str(tv) for tv in targets])
+
+    # Compute similarity: shape = (1, num_targets)
+    sims = cosine_similarity(source_emb, target_embs)[0]
+
+    # Find best match
+    best_idx = sims.argmax()
+    best_target = targets[best_idx]
+
+    return best_target
     
 
 def llm_reasoning_algorithm(source, targets):
