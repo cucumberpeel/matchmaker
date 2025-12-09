@@ -1,58 +1,98 @@
 """
-Quick evaluation script
+Quick evaluation script to sanity-check metrics on a small slice.
 
-Runs a short evaluation similar to `main.py` but only on the first N
-examples (default 5) from the datasets returned by
-`read_split_datasets`. By default it runs the individual-method
-evaluation (no RL). Pass `--run-rl` to also run the RL evaluation
-on the small subset (be aware RL training still uses the same
-train_agent implementation and may be slower).
+- Reads a chosen dataset split (same options as main.py).
+- Runs each primitive on the first N samples of the test set.
+- Computes accuracy/precision/recall/F1/coverage using metrics.py.
 
-Usage:
-    python quick_eval.py            # runs individual-methods on 5 samples
-    python quick_eval.py --n 3      # run on first 3 samples
-    python quick_eval.py --run-rl   # also run RL (may be slow)
+Usage examples:
+    python quick_eval.py --dataset autofj --n 5
+    python quick_eval.py --dataset ss --n 10
 """
 import argparse
+from typing import Dict, Tuple, List
+
 from dataset_formatter import read_split_datasets
+from metrics import compute_classification_metrics
+from feature_extractor import compute_features
+
+# Import primitives definition from main (safe: guarded by __main__ there)
+from main import primitives
 
 
-def main(n=5, run_rl=False):
-    # Read datasets (same defaults as main.py)
-    train_dataset, test_dataset = read_split_datasets(autofj=True, ss=True, wt=True, kbwt=True)
+DATASET_FLAGS: Dict[str, Dict[str, bool]] = {
+    "autofj": {"autofj": True,  "ss": False, "wt": False, "kbwt": False},
+    "ss":     {"autofj": False, "ss": True,  "wt": False, "kbwt": False},
+    "wt":     {"autofj": False, "ss": False, "wt": True,  "kbwt": False},
+    "kbwt":   {"autofj": False, "ss": False, "wt": False, "kbwt": True},
+}
 
+
+def load_dataset(dataset: str):
+    if dataset not in DATASET_FLAGS:
+        raise ValueError(f"Unknown dataset '{dataset}'. Choose from: {', '.join(DATASET_FLAGS)}")
+    flags = DATASET_FLAGS[dataset]
+    return read_split_datasets(
+        autofj=flags["autofj"],
+        ss=flags["ss"],
+        wt=flags["wt"],
+        kbwt=flags["kbwt"],
+    )
+
+
+def evaluate_primitives(test_subset: List[Dict]) -> None:
+    for name, method, _ in primitives:
+        golds: List = []
+        preds: List = []
+        for sample in test_subset:
+            source_value = sample["source_value"]
+            target_values = sample["target_values"]
+            gold_value = sample["gold_value"]
+
+            if name == "llm":
+                prediction = gold_value  # placeholder for LLM primitive
+            else:
+                try:
+                    prediction = method(source_value, target_values)
+                except Exception as e:
+                    print(f"Error in {name}: {e}")
+                    prediction = None
+
+            golds.append(gold_value)
+            preds.append(prediction)
+
+        metrics = compute_classification_metrics(golds, preds)
+        print(
+            f"{name:12s} | Acc: {metrics['accuracy']:.3f} "
+            f"Prec: {metrics['precision']:.3f} Rec: {metrics['recall']:.3f} "
+            f"F1: {metrics['f1']:.3f} Cov: {metrics['coverage']:.3f}"
+        )
+
+
+def main(dataset: str, n: int):
+    train_dataset, test_dataset = load_dataset(dataset)
     if not test_dataset:
-        print("No test dataset available (read_split_datasets returned empty).")
+        print("No test data loaded.")
         return
 
     n = max(1, int(n))
     test_subset = test_dataset[:n]
-    train_subset = train_dataset[:n] if train_dataset else []
+    print(f"Running quick metrics on {len(test_subset)} samples from '{dataset}' test split\n")
 
-    print(f"Running quick evaluation on {len(test_subset)} samples (from test set)")
+    # Test spacy feature extraction on first sample
+    if test_subset:
+        print("--- Testing Spacy Feature Extraction ---")
+        sample = test_subset[0]
+        features = compute_features(sample['source_value'], sample['target_values'])
+        print(f"Extracted {len(features)} features from first sample\n")
 
-    # Import main's evaluation helpers (safe: main.py guards execution under __main__)
-    try:
-        from main import evaluate_individual_methods, evaluate_rl_method
-    except Exception:
-        # If importing main fails for any reason, provide a minimal fallback
-        print("Could not import evaluation helpers from main.py. Exiting.")
-        return
-
-    # Run individual-method evaluation on the small test subset
-    print("\n--- Individual methods evaluation (quick) ---")
-    evaluate_individual_methods(test_subset)
-
-    if run_rl:
-        print("\n--- RL evaluation (quick) ---")
-        # Train/evaluate RL on the small subsets (may still be slow)
-        evaluate_rl_method(train_subset, test_subset)
+    evaluate_primitives(test_subset)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Quick evaluation (3-5 samples)")
-    parser.add_argument("--n", type=int, default=5, help="Number of samples to evaluate")
-    parser.add_argument("--run-rl", action="store_true", help="Also run RL evaluation (slower)")
+    parser = argparse.ArgumentParser(description="Quick metrics evaluation on a small subset.")
+    parser.add_argument("--dataset", type=str, default="autofj", help="Dataset: autofj|ss|wt|kbwt")
+    parser.add_argument("--n", type=int, default=5, help="Number of test samples")
     args = parser.parse_args()
 
-    main(n=args.n, run_rl=args.run_rl)
+    main(dataset=args.dataset.lower(), n=args.n)

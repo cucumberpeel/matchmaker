@@ -8,3 +8,5 @@ ray[rllib]
 dm-tree
 "ray[tune]"
 lz4
+spacy
+en_core_web_sm

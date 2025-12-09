@@ -8,9 +8,45 @@ try:
 except Exception:
     _HAS_RAPIDFUZZ = False
 
-FEATURE_DIM = 32
+try:
+    import spacy
+    _HAS_SPACY = True
+except Exception:
+    _HAS_SPACY = False
+
+FEATURE_DIM = 38  # updated to include entity features
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+
+# Lazy-load spacy model on first use
+_SPACY_NLP = None
+
+def _get_nlp():
+    global _SPACY_NLP
+    if _SPACY_NLP is None and _HAS_SPACY:
+        try:
+            _SPACY_NLP = spacy.load("en_core_web_sm")
+            print("[feature_extractor] Spacy model 'en_core_web_sm' loaded successfully.")
+        except Exception as e:
+            print(f"[feature_extractor] Failed to load spacy model: {e}")
+            pass
+    return _SPACY_NLP
+
+def has_entities(text):
+    """Return True if text contains any named entities recognized by spacy."""
+    nlp = _get_nlp()
+    if nlp is None:
+        return False
+    doc = nlp(str(text))
+    return len(doc.ents) > 0
+
+def count_entities(text):
+    """Return count of named entities in text."""
+    nlp = _get_nlp()
+    if nlp is None:
+        return 0
+    doc = nlp(str(text))
+    return len(doc.ents)
 
 def looks_like_email(s):
     return "@" in s and "." in s
@@ -80,10 +116,22 @@ def compute_features(source_value, target_values):
     is_name_source = looks_like_name(source_value)
     is_address_source = looks_like_address(source_value)
 
+    # Entity recognition features (spacy)
+    source_has_entities = has_entities(source_value)
+    source_entity_count = count_entities(source_value)
+
     # Candidate set characteristics
     num_candidates = len(target_values)
     avg_candidate_length = np.mean([len(t) for t in target_values])
     std_candidate_length = np.std([len(t) for t in target_values])
+
+    # Entity features for candidates
+    candidate_entity_flags = [has_entities(t) for t in target_values]
+    candidate_entity_counts = [count_entities(t) for t in target_values]
+    any_candidate_has_entities = any(candidate_entity_flags)
+    frac_candidates_with_entities = sum(candidate_entity_flags) / max(1, len(target_values))
+    max_candidate_entity_count = max(candidate_entity_counts) if candidate_entity_counts else 0
+    mean_candidate_entity_count = np.mean(candidate_entity_counts) if candidate_entity_counts else 0.0
 
     features = [
         length_source,
@@ -103,7 +151,14 @@ def compute_features(source_value, target_values):
         is_currency_source,
         is_zip_source,
         is_name_source,
-        is_address_source
+        is_address_source,
+        # Entity features
+        source_has_entities,
+        source_entity_count,
+        any_candidate_has_entities,
+        frac_candidates_with_entities,
+        max_candidate_entity_count,
+        mean_candidate_entity_count
     ]
 
     # --- Pairwise lexical features (aggregated across candidate set) ---
