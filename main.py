@@ -1,19 +1,11 @@
 import os
 import sys
-import json
-from datetime import datetime
 from agent_lab import train_agent, load_agent, evaluate_agent
-from agent_environment import ValueMatchingEnv
 from dataset_formatter import read_split_datasets, save_formatted_datasets
 from algorithms import (lexical_algorithm, semantic_algorithm, llm_reasoning_algorithm,
-shingles_algorithm, regex_algorithm, identity_algorithm, categorical_algorithm,
-url_algorithm, ssn_algorithm,
-filepath_algorithm, uuid_algorithm,
-accent_fold_algorithm,
-light_stem_algorithm)
+shingles_algorithm, regex_algorithm, identity_algorithm, accent_fold_algorithm)
 from feature_extractor import FEATURE_DIM
 from metrics import compute_classification_metrics
-
 
 general_costs = {'light': 0.075, 'moderate': 0.15, 'expensive': 0.3}
 primitives = [
@@ -72,71 +64,8 @@ def evaluate_rl_method(train_file_path, test_file_path, load_checkpoint=False, c
         feature_dim=feature_dim,
         max_steps=max_steps
     )
-
-    # Compute overall metrics in main using the trained agent
-    golds, preds = run_eval_for_metrics(
-        algo=algo,
-        primitives=primitive_methods,
-        primitive_names=primitive_names,
-        primitive_costs=primitive_costs,
-        test_dataset_path=test_file_path,
-        feature_dim=feature_dim,
-        max_steps=max_steps
-    )
-    metrics = compute_classification_metrics(golds, preds)
-    print("\n=== Metrics (computed in main) ===")
-    print(f"Accuracy:  {metrics['accuracy']:.3f}")
-    print(f"Precision: {metrics['precision']:.3f}")
-    print(f"Recall:    {metrics['recall']:.3f}")
-    print(f"F1:        {metrics['f1']:.3f}")
-    print(f"Coverage:  {metrics['coverage']:.3f}")
-
-    # Persist metrics to file for later inspection
-    metrics_payload = {
-        "timestamp": datetime.utcnow().isoformat() + "Z",
-        "dataset": os.path.basename(test_file_path),
-        "metrics": metrics,
-        "count": len(golds),
-    }
-    metrics_path = os.path.join(checkpoint_dir, "metrics.json")
-    with open(metrics_path, "w", encoding="utf-8") as mf:
-        json.dump(metrics_payload, mf, indent=2)
-    print(f"Metrics written to {metrics_path}")
-
-    return results
-
-
-def run_eval_for_metrics(algo, primitives, primitive_names, primitive_costs, test_dataset_path, feature_dim, max_steps):
-    """Run evaluation to collect gold/pred pairs for metric computation (keeps agent code untouched)."""
-    with open(test_dataset_path, "r") as f:
-        test_dataset = json.load(f)
-
-    golds, preds = [], []
-
-    for sample in test_dataset:
-        env = ValueMatchingEnv({
-            'primitives': primitives,
-            'primitive_names': primitive_names,
-            'costs': primitive_costs,
-            'dataset': [sample],
-            'feature_dim': feature_dim,
-            'max_steps': max_steps
-        })
-
-        state, info = env.reset()
-        done = False
-        final_pred = None
-        while not done:
-            action = algo.compute_single_action(state, explore=False)
-            next_state, reward, terminated, truncated, info = env.step(action)
-            done = terminated or truncated
-            state = next_state
-            final_pred = info.get('predicted')
-
-        golds.append(sample['gold_value'])
-        preds.append(final_pred)
-
-    return golds, preds
+    metrics = compute_classification_metrics(results["golds"], results["preds"])
+    print(f"Metrics: {metrics}")
 
 
 def evaluate_individual_methods(test_dataset):
@@ -167,10 +96,9 @@ def evaluate_individual_methods(test_dataset):
             golds.append(gold_value)
             preds.append(prediction)
         accuracy = correct / total
-        #prf = compute_prf(golds, preds)
+
         print(
             f"Method: {name}, Accuracy: {accuracy:.3f}, "
-            #f"Precision: {prf['precision']:.3f}, Recall: {prf['recall']:.3f}, F1: {prf['f1']:.3f}"
         )
 
 if __name__ == "__main__":
