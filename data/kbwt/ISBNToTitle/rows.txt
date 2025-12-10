@@ -1,2 +1,0 @@
-ISBN:Title
-source
