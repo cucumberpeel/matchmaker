@@ -118,6 +118,7 @@ def evaluate_agent(algo, primitives, primitive_names, primitive_costs, test_data
     with open(test_dataset_path, "r") as f:
         test_dataset = json.load(f)
 
+    golds, preds = [], []
     for i, sample in enumerate(test_dataset):
         # Create a temporary env for this episode
         env = ValueMatchingEnv({
@@ -156,11 +157,16 @@ def evaluate_agent(algo, primitives, primitive_names, primitive_costs, test_data
         for used_algorithm in info['history']:
             if used_algorithm != -1:
                 results['algorithm_usage'][primitive_names[used_algorithm]] += 1
+
+        golds.append(sample['gold_value'])
+        preds.append(info['predicted'])
+
+    results["golds"] = golds
+    results["preds"] = preds
     
-    # Print evaluation results
-    print(f"\n=== Evaluation Results ===")
-    print(f"Accuracy: {results['correct'] / results['total']:.3f}")
+    # Print statistics
+    print(f"\n=== Statistics ===")
     print(f"Average Attempts: {results['total_attempts'] / results['total']:.3f}")
     print(f"Algorithm Usage: {results['algorithm_usage']}")
-    
+
     return results
