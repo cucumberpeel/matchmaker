@@ -60,7 +60,7 @@ class ValueMatchingEnv(gym.Env):
 
         if action in self.action_history[:self.steps_taken-1]:  # Check previous actions only
             # Penalize heavily for selecting an already-used action
-            reward = -100
+            reward = -100.0
             done = True
             truncated = False
             next_state = self._build_observation()
@@ -76,10 +76,7 @@ class ValueMatchingEnv(gym.Env):
 
             return next_state, reward, done, truncated, info
 
-        if self.primitive_names[action] == 'llm': # Special case for LLM reasoning during training
-            predicted = self.gold
-        else:
-            predicted = self.primitives[action](self.source, self.targets)
+        predicted = self.primitives[action](self.source, self.targets)
 
         # Check if correct
         is_correct = (predicted == self.gold)
