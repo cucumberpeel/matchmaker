@@ -68,38 +68,6 @@ def evaluate_rl_method(train_file_path, test_file_path, load_checkpoint=False, c
     print(f"Metrics: {metrics}")
 
 
-def evaluate_individual_methods(test_dataset):
-    print("\nEvaluating individual methods...")
-    for name, method, _ in primitives:
-        print(f"\nEvaluating method: {name}")
-        correct = 0
-        total = len(test_dataset)
-        golds = []
-        preds = []
-        for test_input in test_dataset:
-            source_value = test_input['source_value']
-            target_values = test_input['target_values']
-            gold_value = test_input['gold_value']
-            # TODO: Remove this placeholder for LLM reasoning
-            if name == 'llm':
-                prediction = gold_value  # Assume perfect prediction for LLM in this placeholder
-            else:
-                try:
-                    prediction = method(source_value, target_values)
-                except Exception as e:
-                    print(f"Error in {name} method: {e}")
-                    print(f"Input: {source_value}, {target_values[:3]}")
-                    return
-
-            if prediction == gold_value:
-                correct += 1
-            golds.append(gold_value)
-            preds.append(prediction)
-        accuracy = correct / total
-
-        print(
-            f"Method: {name}, Accuracy: {accuracy:.3f}, "
-        )
 
 if __name__ == "__main__":
     dataset_arg = sys.argv[1].lower()
@@ -132,6 +100,5 @@ if __name__ == "__main__":
     print(f"Train dataset size: {len(train_dataset)}")
     print(f"Test dataset size: {len(test_dataset)}")
 
-    #evaluate_individual_methods(test_dataset)
     checkpoint_dir = f"model_checkpoints/{dataset_arg}"
     evaluate_rl_method(train_file_path, test_file_path, checkpoint_dir=checkpoint_dir)
